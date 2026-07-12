@@ -1,8 +1,10 @@
 // HTTP 1.1 compliant server built by Raresreras
-// Main parser
+// HTTP parsing functions file
 
 use super::types::{http_methods, http_request, http_header};
 
+// Main parser
+// TODO! upgrade this parser so we can have requests with spaces
 pub fn http_parser(input: &[u8]) -> Option<http_request> {
 	let mut request = http_request::default();
 
@@ -53,6 +55,8 @@ pub fn http_parser(input: &[u8]) -> Option<http_request> {
 	}
 
 	// HTTP body
+
+	request.body = body.into();
 
 	Some(request)
 }

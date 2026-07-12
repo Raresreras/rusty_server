@@ -4,11 +4,21 @@
 mod http;
 
 use http::http_parser;
+use http::router;
+use http::types::*;
 
 fn main() {
-	let test_request = "GET /index.html HTTP/1.1\r\nHost: localhost\r\nUser-Agent: test-client\r\nAccept: */*\r\nConnection: close\r\n\r\n".to_string();
+	let test_request = "GET / HTTP/1.1\r\nHost: localhost\r\nUser-Agent: test-client\r\nAccept: */*\r\nConnection: close\r\n\r\n".to_string();
 
 	let test_http_parsed = http_parser(test_request.as_bytes()).unwrap();
 
-	println!("{:#?}", test_http_parsed);
+	let mut http_router = router::new();
+
+	http_router.add_route(http_methods::GET, "/", |_request| {
+		(http_status::OK, "Hello world!".into())
+	});
+
+	let response = http_router.handle(&test_http_parsed);
+
+	println!("{:#?}", response);
 }

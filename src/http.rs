@@ -3,6 +3,8 @@
 
 pub mod types;
 pub mod parser;
+pub mod handler;
 
-pub use types::{http_methods, http_request};
+pub use types::{http_methods, http_request, http_header, http_response};
 pub use parser::http_parser;
+pub use handler::{router};
