@@ -6,8 +6,6 @@ use std::collections::HashMap;
 
 // Routing table
 
-type route_func = fn(&http_request) -> (http_status, Vec<u8>);
-
 pub struct router {
 	routes: HashMap<(http_methods, String), route_func>,
 }

@@ -167,3 +167,6 @@ impl http_status {
 		}
 	}
 }
+
+// Routing table function type
+pub type route_func = fn(&http_request) -> (http_status, Vec<u8>);

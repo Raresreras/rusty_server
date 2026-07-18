@@ -18,7 +18,7 @@ Simple HTTP 1.1 server made with Rust for educational purposes.
 
 ### Parser
 
-Simple http parser( which needs to be rewrote :) )
+Simple http parser( which needs to be rewritten :) )
 
 ```
 	pub fn http_parser(input: &[u8]) -> Option<http_request>
