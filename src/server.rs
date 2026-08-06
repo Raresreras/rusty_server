@@ -83,7 +83,6 @@ impl http_server {
 
 							let res = stream.read(buffer).unwrap_or(0);
 							let parsed_request = http_parser(buffer);
-							// println!("{:?}", parsed_request);
 
 							// Router
 							let response = http_router
@@ -91,8 +90,7 @@ impl http_server {
 								.unwrap()
 								.handle(&parsed_request.unwrap());
 
-							println!("{:?}", response);
-							//stream.write(response);
+							stream.write(&response.to_bytes());
 						});
 					}
 					Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {

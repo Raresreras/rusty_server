@@ -16,7 +16,9 @@ fn main() {
 	let mut server = http_server::new();
 
 	server.add_route(http_methods::GET, "/", |_request| {
-		(http_status::OK, "Hello world!".into())
+		let mut response = http_response::empty(http_status::OK);
+		response.body = "Hello world".to_string().into_bytes();
+		response
 	});
 
 	server.run("127.0.0.1:6767");

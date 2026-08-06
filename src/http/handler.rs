@@ -22,10 +22,10 @@ impl router {
 	}
 
 	// Gets route from the table, returning status and body
-	pub fn handle(&self, input: &http_request) -> (http_status, Vec<u8>) {
+	pub fn handle(&self, input: &http_request) -> http_response {
 		match self.routes.get(&(input.method.clone(), input.path.clone())) {
 			Some(handler) => handler(input),
-			None => (http_status::Not_Found, b"404 Not Found".to_vec()),
+			None => http_response::error(),
 		}
 	}
 }
