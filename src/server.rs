@@ -10,7 +10,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufReader, BufRead};
 
 // Main struct containing:
 //	- router
@@ -76,26 +76,51 @@ impl http_server {
 						
 						// Per request thread
 						let process_handle = thread::spawn(move || {
-							let mut buffer = &mut [0u8; 1024];
 
-							// Listening + parsing
-							// TODO! use res for detecting errors
+							// Buffer
+							let mut reader = BufReader::new(&mut stream);
+							let mut buffer: Vec<u8> = Vec::new();
 
-							let res = stream.read(buffer).unwrap_or(0);
-							let parsed_request = http_parser(buffer);
+							// Listener
+							loop {
+								let mut line = String::new();
+
+								let res = match reader.read_line(&mut line) {
+									Ok(n) => n,
+									Err(e) => {
+										eprintln!("Error: {}", e);
+										break;
+									}
+								};
+							
+								// Connection closed
+								if res == 0 {
+									break;
+								}
+
+								buffer.extend_from_slice(line.as_bytes());
+
+								// End of headers
+								if line == "\r\n" || line == "\n" {
+									break;
+								}
+							}
+
+							let parsed_request = http_parser(&buffer);
 
 							// Router
 							let response = http_router
 								.lock()
 								.unwrap()
-								.handle(&parsed_request.unwrap());
+								.handle(&parsed_request.unwrap_or(http_request::default()));
 
+							// TODO! switch to BufWriter
 							stream.write(&response.to_bytes());
 						});
 					}
 					Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-						// No connection available so we sleep the cpu 100ms
-						thread::sleep(Duration::from_millis(100));
+						// No connection available
+						continue;
 					}
 					Err(e) => {
 						// Proper error handling here would be useful
