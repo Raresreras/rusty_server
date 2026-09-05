@@ -10,7 +10,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
-use std::io::{Read, Write, BufReader, BufRead};
+use std::io::{Read, Write, BufReader, BufRead, BufWriter};
 
 // Main struct containing:
 //	- router
@@ -81,7 +81,7 @@ impl http_server {
 							let mut reader = BufReader::new(&mut stream);
 							let mut buffer: Vec<u8> = Vec::new();
 
-							// Listener
+							// Listener loop
 							loop {
 								let mut line = String::new();
 
@@ -114,13 +114,15 @@ impl http_server {
 								.unwrap()
 								.handle(&parsed_request.unwrap_or(http_request::default()));
 
-							// TODO! switch to BufWriter
-							stream.write(&response.to_bytes());
+							// Writer
+							if let Err(e) = stream.write_all(&response.to_bytes()) {
+								eprintln!("Error: {}", e);
+							};
 						});
 					}
 					Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
 						// No connection available
-						continue;
+						thread::sleep(Duration::from_millis(1));
 					}
 					Err(e) => {
 						// Proper error handling here would be useful
