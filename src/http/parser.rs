@@ -4,23 +4,26 @@
 use super::types::{http_methods, http_request, http_header};
 
 // Main parser
+// This parser works by slicing the http request in two parts, header and body
+// and parsing them isolated one from another
 // TODO! upgrade this parser so we can have requests with spaces
 pub fn http_parser(input: &[u8]) -> Option<http_request> {
 	let mut request = http_request::default();
 
 	// Slicing the body away from the header
-
 	let header_end = find_subslice(input, b"\r\n\r\n")?;
 	let header_section = &input[..header_end]; // Slicing till the end of the header
 	let body = &input[header_end + 4..]; // skip past \r\n\r\n
 
 	let text = std::str::from_utf8(header_section).ok()?;
-	let binding = text.replace("\r\n", " ");
-	let mut split_input = binding.split(' ');
+	let mut lines = text.split("\r\n");
+
+	// Request line detection
+	let request_line = lines.next()?;
+	let mut request_parts = request_line.splitn(3, " ");
 
 	// HTTP method extraction
-	
-	let method_string = split_input.next()?.to_string();
+	let method_string = request_parts.next()?.to_string();
 	request.method = match method_string.as_str() {
 		"GET"     => http_methods::GET,
 		"HEAD"    => http_methods::HEAD,
@@ -36,26 +39,29 @@ pub fn http_parser(input: &[u8]) -> Option<http_request> {
 
 	// HTTP path extraction
 	// TODO! implement query extraction
-	
-	request.path = split_input.next()?.to_string();
+	request.path = request_parts.next()?.to_string();
 
 	// HTTP version extraction
-	
-	request.version = split_input.next()?.to_string();
+	request.version = request_parts.next()?.to_string();
 
 	// HTTP headers
+	for line in lines {
+		if let Some(separator_pos) = line.find(':') {
+			// Name and value extraction
+			let name = (&line[..separator_pos]).trim().to_string();
+			let value = (&line[separator_pos+1..]).trim().to_string();
 
-	while let Some(header) = split_input.next() {
-		if let Some(value) = split_input.next() {
 			request.header_vector.push(http_header{
-				header_name: header.to_string(),
-				header_value: value.to_string()
+				header_name: name,
+				header_value: value
 			});
+		} else {
+			// No separator found, header skipped
+			continue;
 		}
 	}
 
 	// HTTP body
-
 	request.body = body.into();
 
 	Some(request)
