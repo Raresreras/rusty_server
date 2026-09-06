@@ -6,7 +6,6 @@ use super::types::{http_methods, http_request, http_header};
 // Main parser
 // This parser works by slicing the http request in two parts, header and body
 // and parsing them isolated one from another
-// TODO! upgrade this parser so we can have requests with spaces
 pub fn http_parser(input: &[u8]) -> Option<http_request> {
 	let mut request = http_request::default();
 
@@ -38,8 +37,22 @@ pub fn http_parser(input: &[u8]) -> Option<http_request> {
 	};
 
 	// HTTP path extraction
-	// TODO! implement query extraction
-	request.path = request_parts.next()?.to_string();
+	let temp_path = request_parts.next()?.to_string();
+
+	// HTTP query extraction from the path
+	if let Some(query_pos) = temp_path.find('?') {
+		request.path = (&temp_path[..query_pos]).to_string();
+
+		let query = (&temp_path[query_pos+1..]).to_string();
+
+		let query_parts = query.split('&');
+		for part in query_parts {
+			//TODO! Add further parsing here, so we dont spit out raw data
+			request.query_vector.push(part.to_string());
+		}
+	} else {
+		request.path = temp_path;
+	}
 
 	// HTTP version extraction
 	request.version = request_parts.next()?.to_string();

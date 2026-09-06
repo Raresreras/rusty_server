@@ -21,6 +21,16 @@ fn main() {
 		response
 	});
 
+	server.add_route(http_methods::GET, "/query", |_request| {
+		let mut response = http_response::empty(http_status::OK);
+		let text = match _request.query_vector.get(0) {
+	        Some(text) => text.clone(),
+	        None => "no query params".to_string(),
+	    };
+	    response.body = text.into_bytes();		
+	    response
+	});
+
 	server.run("127.0.0.1:6767");
 
 	// TODO! Find better method to keep the server running

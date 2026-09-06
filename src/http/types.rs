@@ -36,8 +36,8 @@ pub struct http_header {
 pub struct http_request {
 	pub method: http_methods,
 	pub path: String,
-	// TODO! Add query here
 	pub version: String,
+	pub query_vector: Vec<String>,
 	pub header_vector: Vec<http_header>,
 	pub body: Vec<u8>,
 }
