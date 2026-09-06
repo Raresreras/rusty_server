@@ -42,50 +42,6 @@ pub struct http_request {
 	pub body: Vec<u8>,
 }
 
-// Response struct
-#[derive(Default, Debug)]
-pub struct http_response {
-	pub version: String,
-	pub status: u16,
-	pub header_vector: Vec<http_header>,
-	pub body: Vec<u8>,
-}
-
-// Default respones
-impl http_response {
-	pub fn empty(status: http_status) -> Self {
-		http_response {
-			version: "HTTP/1.1".to_string(),
-			status: status.code() as u16,
-			..Default::default()
-		}
-	}
-
-	pub fn error() -> Self {
-		http_response {
-			version: "HTTP/1.1".to_string(),
-			status: http_status::Not_Found.code() as u16,
-			..Default::default()
-		}
-	}
-
-	pub fn to_bytes(&self) -> Vec<u8> {
-		// Creating the output bytes vector
-		let mut out = Vec::new();
-		out.extend(self.version.as_bytes());
-		out.extend(b" ");
-		out.extend(self.status.to_string().as_bytes());
-		out.extend(b"\r\n");
-
-		// TODO! add headers
-
-		out.extend(b"\r\n");
-		out.extend(self.body.clone());
-		out
-	}
-}
-
-
 // HTTP status code enumaration + auxiliary implementations
 #[derive(Debug)]
 pub enum http_status {
@@ -200,6 +156,102 @@ impl http_status {
 			http_status::Gateway_Timeout                => 504,
 			http_status::HTTP_Version_Not_Supported     => 505,
 		}
+	}
+}
+
+// Response struct
+#[derive(Default, Debug)]
+pub struct http_response {
+	pub version: String,
+	pub status: u16,
+	pub header_vector: Vec<http_header>,
+	pub body: Vec<u8>,
+}
+
+// Default respones
+impl http_response {
+	pub fn empty(status: http_status) -> Self {
+		http_response {
+			version: "HTTP/1.1".to_string(),
+			status: status.code() as u16,
+			..Default::default()
+		}
+	}
+
+	pub fn error() -> Self {
+		http_response {
+			version: "HTTP/1.1".to_string(),
+			status: http_status::Not_Found.code() as u16,
+			..Default::default()
+		}
+	}
+
+	pub fn reason_from_code(&self) -> &str {
+		match self.status {
+			// 1xx Informational
+			100 => "Continue",
+			101 => "Switching Protocols",
+			// 2xx Success
+			200 => "OK",
+			201 => "Created",
+			202 => "Accepted",
+			203 => "Non-Authoritative Information",
+			204 => "No Content",
+			205 => "Reset Content",
+			206 => "Partial Content",
+			// 3xx Redirection
+			300 => "Multiple Choices",
+			301 => "Moved Permanently",
+			302 => "Found",
+			303 => "See Other",
+			304 => "Not Modified",
+			305 => "Use Proxy",
+			307 => "Temporary Redirect",
+			// 4xx Client Error
+			400 => "Bad Request",
+			401 => "Unauthorized",
+			402 => "Payment Required",
+			403 => "Forbidden",
+			404 => "Not Found",
+			405 => "Method Not Allowed",
+			406 => "Not Acceptable",
+			407 => "Proxy Authentication Required",
+			408 => "Request Timeout",
+			409 => "Conflict",
+			410 => "Gone",
+			411 => "Length Required",
+			412 => "Precondition Failed",
+			413 => "Request Entity Too Large",
+			414 => "Request-URI Too Long",
+			415 => "Unsupported Media Type",
+			416 => "Requested Range Not Satisfiable",
+			417 => "Expectation Failed",
+			// 5xx Server Error
+			500 => "Internal Server Error",
+			501 => "Not Implemented",
+			502 => "Bad Gateway",
+			503 => "Service Unavailable",
+			504 => "Gateway Timeout",
+			505 => "HTTP Version Not Supported",
+			_ => "Unknown",
+		}
+	}
+
+	pub fn to_bytes(&self) -> Vec<u8> {
+		// Creating the output bytes vector
+		let mut out = Vec::new();
+		out.extend(self.version.as_bytes());
+		out.extend(b" ");
+		out.extend(self.status.to_string().as_bytes());
+		out.extend(b" ");
+		out.extend(self.reason_from_code().as_bytes());
+		out.extend(b"\r\n");
+
+		// TODO! add headers
+
+		out.extend(b"\r\n");
+		out.extend(self.body.clone());
+		out
 	}
 }
 
