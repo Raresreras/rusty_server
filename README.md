@@ -1,36 +1,31 @@
-# Rusty Server
+```
+________              _____          ________                               
+___  __ \___  __________  /_____  __ __  ___/______________   ______________
+__  /_/ /  / / /_  ___/  __/_  / / / _____ \_  _ \_  ___/_ | / /  _ \_  ___/
+_  _, _// /_/ /_(__  )/ /_ _  /_/ /  ____/ //  __/  /   __ |/ //  __/  /    
+/_/ |_| \__,_/ /____/ \__/ _\__, /   /____/ \___//_/    _____/ \___//_/     
+						   /____/                                           
+```
+# Introduction
 
 Simple HTTP 1.1 server made with Rust for educational purposes.
 
-## File tree
+# Features
+	
+This HTTP 1.1 server library has the following features:
+- Fast and lightweight
+- HTTP/1.1 support
+- Multi-threaded connections
+- Flexible request routing
+
+# Project structure
 
 ├── Cargo.toml  
 ├── README.md  
 └── src  
-    ├── http  
-    │	├── handler.rs  
-    │	├── parser.rs  
-    │	└── types.rs  
-    ├── http.rs  
-    └── main.rs  
-
-## Current architecture
-
-### Parser
-
-Simple http parser( which needs to be rewritten :) )
-
-```
-	pub fn http_parser(input: &[u8]) -> Option<http_request>
-```
-
-### Handler
-
-The http handler uses a routing table, which has the following methods:
-
-```
-	pub fn new() -> Self
-	pub fn add_route(&mut self, method: http_methods, path: &str, handler: route_func)
-	pub fn handle(&self, input: &http_request) -> (http_status, Vec<u8>)
-```
-
+	├── http  
+	│   ├── handler.rs  
+	│   ├── parser.rs  
+	│   └── types.rs  
+	├── http.rs  
+	└── main.rs  
