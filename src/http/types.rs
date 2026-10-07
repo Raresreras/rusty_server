@@ -247,6 +247,12 @@ impl http_response {
 		out.extend(self.reason_from_code().as_bytes());
 		out.extend(b"\r\n");
 
+		// Content-length header
+		let body_len = self.body.len().to_string();
+		out.extend(b"Content-Length: ");
+		out.extend(body_len.as_bytes());
+		out.extend(b"\r\n");
+
 		// TODO! add headers
 
 		out.extend(b"\r\n");

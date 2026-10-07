@@ -37,7 +37,7 @@ impl http_server {
 	pub fn add_route(&mut self, method: http_methods, path: &str, handler: route_func) {
 		self.http_router
 			.lock()
-			.unwrap()
+			.unwrap_or_else(|e| e.into_inner())
 			.add_route(method, path, handler);
 	}
 
