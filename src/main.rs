@@ -24,17 +24,23 @@ fn main() {
 	server.add_route(http_methods::GET, "/query", |_request| {
 		let mut response = http_response::empty(http_status::OK);
 		let text = match _request.query_vector.get(0) {
-	        Some(text) => text.clone(),
-	        None => "no query params".to_string(),
-	    };
-	    response.body = text.into_bytes();		
-	    response
+			Some(text) => text.clone(),
+			None => "no query params".to_string(),
+		};
+		response.body = text.into_bytes();		
+		response
 	});
 
 	server.run("127.0.0.1:6767");
 
-	// TODO! Find better method to keep the server running
-	std::thread::sleep(std::time::Duration::from_secs(100));
+	// Ctrl+C based keep-alive
+	let (tx, rx) = std::sync::mpsc::channel();
+	ctrlc::set_handler(move || tx.send(()).expect("Could not send signal"))
+		.expect("Error setting Ctrl+C handler");
 
+	println!("Press Ctrl+C to stop the server");
+	rx.recv().expect("Could not receive ctrl+c signal");
+
+	println!("\nClosing server");
 	server.close();
 }
