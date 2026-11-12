@@ -106,13 +106,23 @@ impl http_server {
 								}
 							}
 
-							let parsed_request = http_parser(&buffer);
-
 							// Router
-							let response = http_router
-								.lock()
-								.unwrap()
-								.handle(&parsed_request.unwrap_or(http_request::default()));
+							let response = match http_parser(&buffer) {
+								Some(request) => {
+									// Lock is realeased at the end of this statement
+									let handler = http_router
+										.lock()
+										.unwrap_or_else(|poisoned| poisoned.into_inner())
+										.handle(&request);
+
+									// Mutex lock is dropped here
+									match handler {
+										Some(handler) => handler(&request),
+										None => http_response::error(),
+									}
+								}
+								None => http_response::empty(http_status::Bad_Request),
+							};
 
 							// Writer
 							if let Err(e) = stream.write_all(&response.to_bytes()) {
