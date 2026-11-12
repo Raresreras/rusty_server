@@ -10,7 +10,8 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
-use std::io::{Read, Write, BufReader, BufRead, BufWriter};
+use std::io::{Read, Write, BufReader, BufRead, BufWriter, ErrorKind, Error};
+use std::io;
 
 // Main struct containing:
 //	- router
@@ -21,6 +22,40 @@ pub struct http_server {
 	running: Arc<AtomicBool>,
 	handle: Option<JoinHandle<()>>,
 }
+
+// Maximum header size
+const MAX_HEADER_BYTES: usize = 16 * 1024;
+
+// Http header reading function
+fn read_headers(reader: &mut BufReader<&mut TcpStream>) -> io::Result<Vec<u8>> {
+	let mut buffer = Vec::new();
+
+	loop {
+		let start = buffer.len();
+		let remaining = MAX_HEADER_BYTES.saturating_sub(buffer.len());
+
+		if remaining == 0 {
+			return Err(Error::new(ErrorKind::InvalidData, "headers too large"));
+		}
+
+		let n = reader
+			.by_ref()
+			.take(remaining as u64)
+			.read_until(b'\n', &mut buffer)?;
+
+		if n == 0 {
+			return Err(Error::new(
+                ErrorKind::UnexpectedEof,
+                "connection closed before end of headers",
+            ));
+		}
+
+		let line = &buffer[start..];
+        if line == b"\r\n" || line == b"\n" {
+            return Ok(buffer);
+        }
+	}
+} 
 
 // Main implementation
 impl http_server {
@@ -77,51 +112,27 @@ impl http_server {
 						// Per request thread
 						let process_handle = thread::spawn(move || {
 
-							// Buffer
 							let mut reader = BufReader::new(&mut stream);
-							let mut buffer: Vec<u8> = Vec::new();
-
-							// Listener loop
-							loop {
-								let mut line = String::new();
-
-								let res = match reader.read_line(&mut line) {
-									Ok(n) => n,
-									Err(e) => {
-										eprintln!("Error: {}", e);
-										break;
-									}
-								};
-							
-								// Connection closed
-								if res == 0 {
-									break;
-								}
-
-								buffer.extend_from_slice(line.as_bytes());
-
-								// End of headers
-								if line == "\r\n" || line == "\n" {
-									break;
-								}
-							}
 
 							// Router
-							let response = match http_parser(&buffer) {
-								Some(request) => {
-									// Lock is realeased at the end of this statement
-									let handler = http_router
-										.lock()
-										.unwrap_or_else(|poisoned| poisoned.into_inner())
-										.handle(&request);
+							let response = match read_headers(&mut reader) {
+								Ok(buffer) => match http_parser(&buffer) {
+									Some(request) => {
+										// Lock is released at the end of this statement
+										let handler = http_router
+											.lock()
+											.unwrap_or_else(|poisoned| poisoned.into_inner())
+											.handle(&request);
 
-									// Mutex lock is dropped here
-									match handler {
-										Some(handler) => handler(&request),
-										None => http_response::error(),
+										// Mutex lock is dropped here
+										match handler {
+											Some(handler) => handler(&request),
+											None => http_response::error(),
+										}
 									}
-								}
-								None => http_response::empty(http_status::Bad_Request),
+									None => http_response::empty(http_status::Bad_Request),
+								},
+								Err(_) => http_response::empty(http_status::Bad_Request),
 							};
 
 							// Writer
