@@ -54,6 +54,8 @@ fn read_headers(reader: &mut BufReader<&mut TcpStream>) -> io::Result<Vec<u8>> {
         if line == b"\r\n" || line == b"\n" {
             return Ok(buffer);
         }
+
+        
 	}
 } 
 
@@ -88,9 +90,15 @@ impl http_server {
 
 		// Main thread
 		self.handle = Some(thread::spawn(move || {
+			
 			// Opening the TCP port
-			let listener = TcpListener::bind(&addr_clone)
-				.expect("Failed to bind to address");			
+			let listener = match TcpListener::bind(&addr_clone)  {
+				Ok(listener) => listener,
+				Err(e) => {
+					eprintln!("Error: {}", e);
+					return ();
+				}
+			};
 
 			println!("Server listening on {}", &addr_clone);
 
