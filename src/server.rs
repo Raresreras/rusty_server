@@ -4,7 +4,7 @@ use crate::http::*;
 use crate::http::types::*;
 use crate::http::parser::http_parser;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering, AtomicUsize};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -17,14 +17,19 @@ use std::io;
 //	- router
 //	- running status
 //	- thread handle 
+// - number of active connections
 pub struct http_server {
 	http_router: Arc<Mutex<router>>,
 	running: Arc<AtomicBool>,
 	handle: Option<JoinHandle<()>>,
+	active_connections: Arc<AtomicUsize>
 }
 
+// TODO! move these to a settings struct so they arent hardcoded anymore
 // Maximum header size
 const MAX_HEADER_BYTES: usize = 16 * 1024;
+const MAX_CONNECTIONS: usize = 1024;
+const TIMEOUT: Duration = Duration::from_secs(10);
 
 // Http header reading function
 fn read_headers(reader: &mut BufReader<&mut TcpStream>) -> io::Result<Vec<u8>> {
@@ -53,9 +58,7 @@ fn read_headers(reader: &mut BufReader<&mut TcpStream>) -> io::Result<Vec<u8>> {
 		let line = &buffer[start..];
         if line == b"\r\n" || line == b"\n" {
             return Ok(buffer);
-        }
-
-        
+        }        
 	}
 } 
 
@@ -67,6 +70,7 @@ impl http_server {
 			http_router: Arc::new(Mutex::new(router::new())),
 			running: Arc::new(AtomicBool::new(false)),
 			handle: None,
+			active_connections: Arc::new(AtomicUsize::new(0))
 		}
 	}
 
@@ -87,6 +91,7 @@ impl http_server {
 		let running_clone = self.running.clone();
 		let addr_clone = addr.to_string();
 		let http_router = Arc::clone(&self.http_router);
+		let active_connections = Arc::clone(&self.active_connections);
 
 		// Main thread
 		self.handle = Some(thread::spawn(move || {
@@ -113,6 +118,18 @@ impl http_server {
 						// Logging
 						println!("New connection: {}", addr);
 						println!("{:?}", stream);
+
+						// Timeouts
+						stream.set_read_timeout(Some(TIMEOUT)).ok();
+						stream.set_write_timeout(Some(TIMEOUT)).ok();
+
+						// Connection limit checking
+						if active_connections.load(Ordering::SeqCst) > MAX_CONNECTIONS {
+							continue;
+						}
+
+						// Adding the current connection
+						active_connections.fetch_add(1, Ordering::SeqCst);
 
 						// Extra http_router clone for the next thread
 						let http_router = Arc::clone(&http_router);
@@ -148,7 +165,11 @@ impl http_server {
 								eprintln!("Error: {}", e);
 							};
 						});
+
+						// Substracting the current connection
+							active_connections.fetch_sub(1, Ordering::SeqCst);
 					}
+
 					Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
 						// No connection available
 						thread::sleep(Duration::from_millis(1));
