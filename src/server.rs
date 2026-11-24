@@ -8,9 +8,9 @@ use std::sync::atomic::{AtomicBool, Ordering, AtomicUsize};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
-use std::io::{Read, Write, BufReader, BufRead, BufWriter, ErrorKind, Error};
+use std::io::{Read, Write, BufReader, BufRead, ErrorKind, Error};
 use std::io;
 
 // Main struct containing:
@@ -22,7 +22,11 @@ pub struct http_server {
 	http_router: Arc<Mutex<router>>,
 	running: Arc<AtomicBool>,
 	handle: Option<JoinHandle<()>>,
-	active_connections: Arc<AtomicUsize>
+	active_connections: Arc<AtomicUsize>,
+	// Address the listener actually bound to (useful with port 0 in tests)
+	local_addr: Option<SocketAddr>,
+	// Per-connection logging is useful in examples but ruins benchmark numbers
+	verbose: Arc<AtomicBool>,
 }
 
 // TODO! move these to a settings struct so they arent hardcoded anymore
@@ -70,8 +74,22 @@ impl http_server {
 			http_router: Arc::new(Mutex::new(router::new())),
 			running: Arc::new(AtomicBool::new(false)),
 			handle: None,
-			active_connections: Arc::new(AtomicUsize::new(0))
+			active_connections: Arc::new(AtomicUsize::new(0)),
+			local_addr: None,
+			verbose: Arc::new(AtomicBool::new(true)),
 		}
+	}
+
+	// Enables/disables per-connection logging (on by default, as before).
+	pub fn set_verbose(&mut self, verbose: bool) {
+		self.verbose.store(verbose, Ordering::SeqCst);
+	}
+
+	// Address the server is listening on, available once `run` has bound it.
+	// With "127.0.0.1:0" this is the OS-assigned port, which makes tests and
+	// benchmarks independent of hardcoded ports.
+	pub fn local_addr(&self) -> Option<SocketAddr> {
+		self.local_addr
 	}
 
 	// Adding route to the http_router
@@ -87,26 +105,31 @@ impl http_server {
 		// Setting the running flag to true
 		self.running.store(true, Ordering::SeqCst);
 
+		// Bind before spawning so bind errors are reported to the caller's
+		// thread and `local_addr` is available immediately (port 0 support).
+		let listener = match TcpListener::bind(addr) {
+			Ok(listener) => listener,
+			Err(e) => {
+				eprintln!("Error: {}", e);
+				self.running.store(false, Ordering::SeqCst);
+				return ();
+			}
+		};
+
+		self.local_addr = listener.local_addr().ok();
+
 		// Clones for threads
 		let running_clone = self.running.clone();
-		let addr_clone = addr.to_string();
 		let http_router = Arc::clone(&self.http_router);
 		let active_connections = Arc::clone(&self.active_connections);
+		let verbose = Arc::clone(&self.verbose);
+
+		if verbose.load(Ordering::SeqCst) {
+			println!("Server listening on {:?}", self.local_addr);
+		}
 
 		// Main thread
 		self.handle = Some(thread::spawn(move || {
-			
-			// Opening the TCP port
-			let listener = match TcpListener::bind(&addr_clone)  {
-				Ok(listener) => listener,
-				Err(e) => {
-					eprintln!("Error: {}", e);
-					return ();
-				}
-			};
-
-			println!("Server listening on {}", &addr_clone);
-
 			// Setting the connection to non-blocking
 			// so we can close it outside the thread
 			listener.set_nonblocking(true).expect("Failed to set non-blocking");
@@ -116,8 +139,9 @@ impl http_server {
 				match listener.accept() {
 					Ok((mut stream, addr)) => {
 						// Logging
-						println!("New connection: {}", addr);
-						println!("{:?}", stream);
+						if verbose.load(Ordering::Relaxed) {
+							println!("New connection: {}", addr);
+						}
 
 						// Timeouts
 						stream.set_read_timeout(Some(TIMEOUT)).ok();
@@ -135,7 +159,7 @@ impl http_server {
 						let http_router = Arc::clone(&http_router);
 						
 						// Per request thread
-						let process_handle = thread::spawn(move || {
+						thread::spawn(move || {
 
 							let mut reader = BufReader::new(&mut stream);
 
@@ -190,7 +214,10 @@ impl http_server {
 
 		// Joining the handle to get the thread data
 		if let Some(handle) = self.handle.take() {
-			handle.join().unwrap();
+			// Don't panic from a destructor if the accept thread ever dies.
+			let _ = handle.join();
 		}
+
+		self.local_addr = None;
 	}
 }

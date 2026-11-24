@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 ctrlc = "3"
+
+[workspace]
+members = ["testing"]
+resolver = "3"
